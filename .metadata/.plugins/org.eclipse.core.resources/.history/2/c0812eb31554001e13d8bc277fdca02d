@@ -1,0 +1,267 @@
+/*
+ * Code.c
+ *
+ *  Created on: Sep 15, 2023
+ *      Author: janaw
+ */
+
+/*#include <avr/io.h>
+#include <avr/interrupt.h>
+
+int second = 0;
+int minute = 0;
+int hour = 0;
+
+void timer1_CTC(){
+	TCNT1 = 0;
+	OCR1A = 1000;
+	TCCR1A  = (1 << FOC1A);
+	TCCR1B = (1 << WGM12) | (1 << CS10) | (1 << CS12);
+	TIMSK |= (1 << OCIE1A);
+
+}
+ISR(TIMER1_COMPA_vect){
+	second++;
+	if (second == 60){
+		minute++;
+		second = 0;
+		if(minute == 60){
+			hour++;
+			minute = 0;
+		}
+	}
+}
+
+void INT0_Init(){
+	DDRC &= (1 << PD2);
+	PORTD |= (1 << PD2);
+	MCUCR |= (1 << ISC01);
+	GICR |= (1 << INT0);
+}
+
+void INT1_Init(){
+	DDRC &= (1 << PD3);
+	MCUCR |= (1 << ISC11) | (1 << ISC10);
+	GICR |= (1 << INT1);
+}
+void INT2_Init(){
+	DDRC &= (1 << PB2);
+	PORTB |= (1 << PB2);
+	MCUCSR |= (1 << ISC2);
+	GICR |= (1 << INT2);
+}
+//Reset interrupt
+ISR(INT0_vect){
+	SREG |= (1 << 7);
+	second = 0;
+	minute = 0;
+	hour = 0;
+	TCNT1 = 0;
+}
+
+//pause interrupt
+ISR(INT1_vect){
+	SREG |= (1 << 7);
+	TCCR1B &= (~(1 << CS10)) & (~(1 << CS12));
+}
+
+//resume interrupt
+ISR(INT2_vect){
+	SREG |= (1 << 7);
+	TCCR1B |= (1 << CS10) | (1 << CS12);
+}
+
+void init_7segment(void){
+	DDRC = 0x0F;
+	PORTC = 0xF0;
+	DDRA = 0X3F;
+	PORTA = 0x01;
+}
+
+// Function to update the 7-segment display
+void display() {
+    // Calculate BCD values for hours, minutes, and seconds
+    int bcdHours = (hour / 10) << 4 | (hour % 10);
+    int bcdMinutes = (minute / 10) << 4 | (minute % 10);
+    int bcdSeconds = (second / 10) << 4 | (second % 10);
+
+    // Display hours
+    PORTA = 0x01; // Select the first 7-segment display
+    PORTC = bcdHours; // Output BCD value to 7447 decoder
+
+    // Display minutes
+    PORTA = 0x02; // Select the second 7-segment display
+    PORTC = bcdMinutes; // Output BCD value to 7447 decoder
+
+    // Display seconds
+    PORTA = 0x04; // Select the third 7-segment display
+    PORTC = bcdSeconds; // Output BCD value to 7447 decoder
+
+}
+
+
+int main(void){
+	SREG|=(1<<7);
+
+	INT0_Init();
+
+	INT1_Init();
+
+	INT2_Init();
+
+	timer1_CTC();
+
+	init_7segment();
+
+
+	while(1){
+		display();
+
+	}
+	return 0;
+}*/
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+
+volatile int second = 0; // Use 'volatile' for shared variables with ISR
+volatile int minute = 0;
+volatile int hour = 0;
+
+void timer1_CTC() {
+    TCNT1 = 0;
+    OCR1A = 1000; // Adjust this value for a 1-second interrupt (assuming a 16MHz clock)
+    TCCR1A = 0; // Set COM1A1 and COM1A0 to 0 (normal mode)
+    TCCR1B = (1 << WGM12) | (1 << CS10) | (1 << CS12); // CTC mode, prescaler 1024
+    TIMSK |= (1 << OCIE1A);
+}
+
+ISR(TIMER1_COMPA_vect) {
+    second++;
+    if (second == 60) {
+        minute++;
+        second = 0;
+        if (minute == 60) {
+            hour++;
+            minute = 0;
+            if (hour == 24) {
+                hour = 0;
+            }
+        }
+    }
+}
+
+void INT0_Init() {
+    DDRC &= ~(1 << PD2); // Use ~ to clear the bit
+    PORTD |= (1 << PD2);
+    MCUCR |= (1 << ISC01);
+    GICR |= (1 << INT0);
+}
+
+void INT1_Init() {
+    DDRC &= ~(1 << PD3);
+    MCUCR |= (1 << ISC11) | (1 << ISC10);
+    GICR |= (1 << INT1);
+}
+
+void INT2_Init() {
+    DDRB &= ~(1 << PB2);
+    PORTB |= (1 << PB2);
+    MCUCSR |= (1 << ISC2);
+    GICR |= (1 << INT2);
+}
+
+// Reset interrupt
+ISR(INT0_vect) {
+    second = 0;
+    minute = 0;
+    hour = 0;
+    TCNT1 = 0;
+}
+
+// Pause interrupt
+ISR(INT1_vect) {
+    TCCR1B &= ~((1 << CS10) | (1 << CS12)); // Clear prescaler bits
+}
+
+// Resume interrupt
+ISR(INT2_vect) {
+    TCCR1B |= (1 << CS10) | (1 << CS12); // Set prescaler bits
+}
+
+void init_7segment(void) {
+    DDRC = 0x0F;
+    PORTC = 0xF0;
+    DDRA = 0X3F;
+    PORTA = 0x01;
+}
+
+// Function to update the 7-segment display
+// Function to update the 7-segment display
+void display() {
+    // Calculate BCD values for hours, minutes, and seconds
+    int bcdHours = (hour / 10) << 4 | (hour % 10);
+    int bcdMinutes = (minute / 10) << 4 | (minute % 10);
+    int bcdSeconds = (second / 10) << 4 | (second % 10);
+
+    // Select the first 7-segment display (units of seconds)
+    PORTA = 0x01;
+    PORTC = bcdSeconds;
+
+    // Delay or pause here for a short time if needed (for multiplexing)
+    _delay_ms(5); // Adjust the delay time as needed
+
+    // Select the second 7-segment display (tens of seconds)
+    PORTA = 0x02;
+    PORTC = (bcdSeconds / 10) << 4 | (bcdSeconds % 10);
+
+    // Delay or pause here for a short time if needed (for multiplexing)
+    _delay_ms(5); // Adjust the delay time as needed
+
+    // Select the third 7-segment display (minutes)
+    PORTA = 0x04;
+    PORTC = bcdMinutes;
+
+    // Delay or pause here for a short time if needed (for multiplexing)
+    _delay_ms(5); // Adjust the delay time as needed
+
+    // Select the fourth 7-segment display (tens of minutes)
+    PORTA = 0x08;
+    PORTC = (bcdMinutes / 10) << 4 | (bcdMinutes % 10);
+
+    // Delay or pause here for a short time if needed (for multiplexing)
+    _delay_ms(5); // Adjust the delay time as needed
+
+    // Select the fifth 7-segment display (hours)
+    PORTA = 0x10;
+    PORTC = bcdHours;
+
+    // Delay or pause here for a short time if needed (for multiplexing)
+    _delay_ms(5); // Adjust the delay time as needed
+
+    // Select the sixth 7-segment display (tens of hours)
+    PORTA = 0x20;
+    PORTC = (bcdHours / 10) << 4 | (bcdHours % 10);
+
+    // Delay or pause here for a short time if needed (for multiplexing)
+    _delay_ms(5); // Adjust the delay time as needed
+}
+
+int main(void) {
+    SREG |= (1 << 7);
+
+    INT0_Init();
+    INT1_Init();
+    INT2_Init();
+    timer1_CTC();
+    init_7segment();
+
+    sei(); // Enable global interrupts
+
+    while (1) {
+    	display();
+    }
+    return 0;
+}
+

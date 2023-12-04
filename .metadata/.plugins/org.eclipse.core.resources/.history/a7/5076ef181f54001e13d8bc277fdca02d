@@ -1,0 +1,184 @@
+/*
+ * Code.c
+ *
+ *  Created on: Sep 15, 2023
+ *      Author: janaw
+ */
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <util/delay.h>
+
+int second = 0;
+int minute = 0;
+int hour = 0;
+int clk[6];
+
+void timer1_CTC(){
+	TCNT1 = 0;
+	OCR1A = 1000;
+	TCCR1A  = (1 << FOC1A);
+	TCCR1B = (1 << WGM12) | (1 << CS10) | (1 << CS12);
+	TIMSK |= (1 << OCIE1A);
+
+}
+ISR(TIMER1_COMPA_vect){
+	clk[0]++;//sec1
+		if(clk[0]==10){
+			clk[0]=0;
+			clk[1]++;//sec2
+			if(clk[1]==6 && clk[0]==0){
+				clk[1]=0;
+				clk[2]++;//min1
+			}
+		}
+		if(clk[2]==10){
+			clk[2]=0;
+			clk[3]++;//min2
+			if(clk[3]==6 && clk[2]==0){
+				clk[3]=0;
+				clk[4]++;//hour1
+			}
+		}
+		if(clk[4]==10){
+			clk[4]=0;
+			clk[5]++;//hour2
+			if(clk[5]==10 && clk[4]==0){
+				Reset_Timer();
+			}
+		}
+//	second++;
+//	if (second == 60){
+//		minute++;
+//		second = 0;
+//		if(minute == 60){
+//			hour++;
+//			minute = 0;
+//		}
+//	}
+}
+
+void INT0_Init(){
+	DDRC &= (1 << PD2);
+	PORTD |= (1 << PD2);
+	MCUCR |= (1 << ISC01);
+	GICR |= (1 << INT0);
+}
+
+void INT1_Init(){
+	DDRC &= (1 << PD3);
+	MCUCR |= (1 << ISC11) | (1 << ISC10);
+	GICR |= (1 << INT1);
+}
+void INT2_Init(){
+	DDRC &= (1 << PB2);
+	PORTB |= (1 << PB2);
+	MCUCSR |= (1 << ISC2);
+	GICR |= (1 << INT2);
+}
+//Reset interrupt
+ISR(INT0_vect){
+	SREG |= (1 << 7);
+	second = 0;
+	minute = 0;
+	hour = 0;
+	TCNT1 = 0;
+}
+
+//pause interrupt
+ISR(INT1_vect){
+	SREG |= (1 << 7);
+	TCCR1B &= (~(1 << CS10)) & (~(1 << CS12));
+}
+
+//resume interrupt
+ISR(INT2_vect){
+	SREG |= (1 << 7);
+	TCCR1B |= (1 << CS10) | (1 << CS12);
+}
+
+void init_7segment(void){
+	DDRC = 0x0F;
+	PORTC = 0xF0;
+	DDRA = 0X3F;
+	PORTA = 0x01;
+}
+
+// Function to update the 7-segment display
+//void display() {
+//    // Calculate BCD values for hours, minutes, and seconds
+//    int bcdHours = (hour / 10) << 4 | (hour % 10);
+//    int bcdMinutes = (minute / 10) << 4 | (minute % 10);
+//    int bcdSeconds = (second / 10) << 4 | (second % 10);
+//
+//    // Display hours
+//    PORTA = 0x01; // Select the first 7-segment display
+//    PORTC = bcdHours; // Output BCD value to 7447 decoder
+//
+//    // Display minutes
+//    PORTA = 0x02; // Select the second 7-segment display
+//    PORTC = bcdMinutes; // Output BCD value to 7447 decoder
+//
+//    // Display seconds
+//    PORTA = 0x04; // Select the third 7-segment display
+//    PORTC = bcdSeconds; // Output BCD value to 7447 decoder
+//
+//}
+// Function to update the 7-segment display
+// Function to update the 7-segment display
+void display() {
+    // Calculate BCD values for hours, minutes, and seconds
+    int bcdHours = (hour / 10) << 4 | (hour % 10);
+    int bcdMinutes = (minute / 10) << 4 | (minute % 10);
+    int bcdSeconds = (second / 10) << 4 | (second % 10);
+
+    // Select the first 7-segment display (tens of minutes, leftmost)
+    PORTA = 0x20;
+    PORTC = (bcdMinutes / 10);
+
+    // Delay or pause here for a short time if needed (for multiplexing)
+    _delay_ms(5); // Adjust the delay time as needed
+
+    // Select the second 7-segment display (minutes)
+    PORTA = 0x10;
+    PORTC = (bcdMinutes % 10);
+
+    // Delay or pause here for a short time if needed (for multiplexing)
+    _delay_ms(5); // Adjust the delay time as needed
+
+    // Select the third 7-segment display (tens of seconds)
+    PORTA = 0x08;
+    PORTC = (bcdSeconds / 10);
+
+    // Delay or pause here for a short time if needed (for multiplexing)
+    _delay_ms(5); // Adjust the delay time as needed
+
+    // Select the fourth 7-segment display (seconds, rightmost)
+    PORTA = 0x04;
+    PORTC = (bcdSeconds % 10);
+
+    // Delay or pause here for a short time if needed (for multiplexing)
+    _delay_ms(5); // Adjust the delay time as needed
+}
+
+
+int main(void){
+	SREG|=(1<<7);
+
+	INT0_Init();
+
+	INT1_Init();
+
+	INT2_Init();
+
+	timer1_CTC();
+
+	init_7segment();
+
+
+	while(1){
+		display();
+
+	}
+	return 0;
+}
